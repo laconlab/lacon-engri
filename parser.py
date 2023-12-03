@@ -124,7 +124,7 @@ class VecernjiParser(Parser):
 PARSER_MAP = {
     "hrt": HrtParser(),
     "direktno": DirektnoParser(),
-    #"vecernji": VecernjiParser(),
+    "vecernji": VecernjiParser(),
 }
 
 @dataclass
