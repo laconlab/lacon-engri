@@ -16,6 +16,9 @@ from dataclasses import dataclass
 from tqdm import tqdm
 from bs4 import BeautifulSoup
 
+DATE_FORMAT = "%Y/%m/%d"
+START_DATE = datetime(2020, 1, 1)
+END_DATE = datetime(2024, 1, 1)
 
 class Parser(ABC):
     def url(self, _: BeautifulSoup) -> str:
@@ -45,7 +48,7 @@ class HrtParser(Parser):
         dates = [self.date_re.match(p.get_text()) for p in soup.find_all("p")]
         dates = [date for date in dates if date is not None]
         assert len(dates) > 0, "unexpected number of dates"
-        return datetime.strptime(dates[0].string, "%d.%m.%Y.").strftime("%Y/%m/%d")
+        return datetime.strptime(dates[0].string, "%d.%m.%Y.").strftime(DATE_FORMAT)
     def text(self, soup: BeautifulSoup) -> str:
         ret = "\n\n".join([d.get_text() for d in soup.find_all("div") if "articleText" in d.get("class", [])])
         assert len(ret) > 10, "text to short"
@@ -73,7 +76,7 @@ class DirektnoParser(Parser):
         dates = [s.get("content") for s in soup.find_all("meta", {"property": "article:published_time"})]
         dates = [date for date in dates if date is not None]
         assert len(dates) == 1, f"unexpected number of dates {dates}"
-        return datetime.strptime(dates[0].strip(), "%Y-%m-%d").strftime("%Y/%m/%d")
+        return datetime.strptime(dates[0].strip(), "%Y-%m-%d").strftime(DATE_FORMAT)
     def text(self, soup: BeautifulSoup) -> str:
         main = soup.find_all("div", {"class": "main-content"})
         assert len(main) == 1, "unexpected len of main content"
@@ -107,7 +110,7 @@ class VecernjiParser(Parser):
         assert len(dates) == 1, f'unexpedted numbed of dates {len(dates)}'
         date = dates[0].get("content").strip()
         assert self.date_re.match(date) is not None, "date not found"
-        return datetime.strptime(date, "%Y-%m-%d").strftime("%Y/%m/%d")
+        return datetime.strptime(date, "%Y-%m-%d").strftime(DATE_FORMAT)
     def text(self, soup: BeautifulSoup) -> str:
         articles = [a for a in soup.find_all("article") if "single-article" in a.get("class", [])]
         assert len(articles) > 0, "cannot find article"
@@ -120,7 +123,7 @@ class VecernjiParser(Parser):
 
 PARSER_MAP = {
     "hrt": HrtParser(),
-    #"diretkno": DirektnoParser(),
+    "direktno": DirektnoParser(),
     #"vecernji": VecernjiParser(),
 }
 
@@ -135,6 +138,7 @@ def get_files(src: Path, dst: Path) -> Tuple[Generator[File, File, None], int]:
     file_count = sum(len(os.listdir(src / f)) for f in os.listdir(src) if (src / f).is_dir())
     def gen():
         for folder in os.listdir(src):
+            print(folder)
             if folder not in PARSER_MAP: continue
             if not (src / folder).is_dir(): continue
             for file in os.listdir(src / folder):
@@ -158,6 +162,9 @@ def process(file: File) -> None:
         data["title"] = file.parser.title(html)
         data["text"] = file.parser.text(html)
         data["publish_date"] = file.parser.date(html)
+
+        if not (START_DATE <= datetime.strptime(data["publish_date"], DATE_FORMAT) <= END_DATE):
+            return
 
         save_path = file.dst_path
         for part in data["publish_date"].split("/"): save_path = save_path / part
