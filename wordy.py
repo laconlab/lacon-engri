@@ -5,7 +5,7 @@ import os
 import json
 import re
 
-from typing import List, Dict
+from typing import List
 from collections import Counter
 
 import nltk
