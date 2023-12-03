@@ -3,7 +3,6 @@ import multiprocessing as mp
 import sys
 import os
 import json
-import re
 
 from typing import List
 from collections import Counter
@@ -13,14 +12,20 @@ nltk.download('punkt')
 
 from tqdm import tqdm
 from nltk.tokenize import sent_tokenize
+import regex
 
-RE_URL = re.compile(
-        r'^(?:http|ftp)s?://' # http:// or https://
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' #domain...
-        r'localhost|' #localhost...
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
-        r'(?::\d+)?' # optional port
-        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+RE_URL = regex.compile(r"^(?:http(s)?:\/\/)?[\w.-]+(?:\.[\w\.-]+)+[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=.]+$", regex.IGNORECASE)
+def is_url(word: str) -> bool:
+    try:
+        return RE_URL.match(word, timeout=1) is not None
+    except Exception:
+        return False
+RE_EMAIL = regex.compile(r"^((?!\.)[\w\-_.]*[^.])(@\w+)(\.\w+(\.\w+)?[^.\W])$", regex.IGNORECASE)
+def is_email(word: str) -> bool:
+    try:
+        return RE_EMAIL.match(word, timeout=1) is not None
+    except Exception:
+        return False
 TRANSLATE = str.maketrans('', '', ''',.?;:'"!()+=/''')
 VALID_CHARS = set('''qwertyuiopasdfghjklzxcvbnmčćđšž,.?;:'"!()-+=/''')
 
@@ -44,7 +49,10 @@ def text_to_words(text: str):
     words = (w for s in sentences for w in s.split(" "))
 
     # filter out urls
-    words = filter(lambda word: RE_URL.match(word) is None, words)
+    words = filter(lambda word: not is_url(word), words)
+
+    # filter out emails
+    words = filter(lambda word: not is_email(word), words)
 
     # filter out capitalized words
     words = filter(lambda word: not word.istitle(), words)
