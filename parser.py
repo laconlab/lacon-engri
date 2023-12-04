@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 from abc import ABC
 from pathlib import Path
-from typing import Generator, Tuple, Dict
+from typing import Generator, Tuple, Dict, Optional
 from dataclasses import dataclass
 
 from tqdm import tqdm
@@ -21,7 +21,7 @@ START_DATE = datetime(2020, 1, 1)
 END_DATE = datetime(2024, 1, 1)
 
 class Parser(ABC):
-    def url(self, _: BeautifulSoup) -> str:
+    def url(self, _: BeautifulSoup) -> Optional[str]:
         raise NotImplemented
     def title(self, _: BeautifulSoup) -> str:
         raise NotImplemented
@@ -33,8 +33,8 @@ class Parser(ABC):
 
 class HrtParser(Parser):
     def __init__(self):
-        self.date_re = re.compile(r"\d{2}\.\d{2}\.(\d){4}\.")
-    def url(self, soup: BeautifulSoup) -> str:
+        self.date_re = re.compile(r"\d{2}\.\d{2}\.(\d){4}\.") 
+    def url(self, soup: BeautifulSoup) -> Optional[str]:
         ret = soup.find("meta", {"property": "og:url"})
         assert ret is not None, "cannot find url"
         ret = ret.get("content")
@@ -62,7 +62,7 @@ class DirektnoParser(Parser):
     def remove_tags(self, html: BeautifulSoup) -> None:
         for tag in self.REMOVE_TAGS: 
             for it in html(tag): it.extract()
-    def url(self, soup: BeautifulSoup) -> str:
+    def url(self, soup: BeautifulSoup) -> Optional[str]:
         url = soup.find("meta", {"property": "og:url"})
         assert url is not None, "cannot find url"
         url = url.get("content")
@@ -95,7 +95,7 @@ class VecernjiParser(Parser):
     def remove_tags(self, html: BeautifulSoup) -> None:
         for tag in self.REMOVE_TAGS: 
             for it in html(tag): it.extract()
-    def url(self, soup: BeautifulSoup) -> str:
+    def url(self, soup: BeautifulSoup) -> Optional[str]:
         url = soup.find("meta", {"property": "og:url"})
         assert url is not None, "cannot find url"
         url = url.get("content")
@@ -128,12 +128,14 @@ class NoviListParser(Parser):
     def remove_tags(self, html: BeautifulSoup) -> None:
         for tag in self.REMOVE_TAGS:
             for it in html.find_all(tag): it.extract()
-    def url(self, soup: BeautifulSoup) -> str:
+    def url(self, soup: BeautifulSoup) -> Optional[str]:
         url = soup.find("meta", {"property": "og:url"})
         assert url is not None, "cannot find url"
         url = url.get("content")
         assert url is not None, "cannot find url"
-        return url.strip()
+        url = url.strip()
+        if url == """https://www.novilist.hr/novosti/""": return None
+        return url
     def title(self, soup: BeautifulSoup) -> str:
         titles = soup.find_all("h1", {"class": "article-title"})
         assert len(titles) >= 1, f"unexpected number of titles found {titles}"
@@ -154,11 +156,44 @@ class NoviListParser(Parser):
         assert len(text) > 0, "text content not found"
         return text
 
+class Sata24Parser(Parser):
+    REMOVE_TAGS = ["a", "script", "blockquote", "iframe", "em", "styple", "source", "video-js", "img", "span",
+                   "input", "ul", "figure"]
+    def remove_tags(self, html: BeautifulSoup) -> None:
+        for tag in self.REMOVE_TAGS:
+            for it in html.find_all(tag): it.extract()
+    def url(self, soup: BeautifulSoup) -> Optional[str]:
+        url = soup.find("meta", {"property": "og:url"})
+        assert url is not None, "cannot find url"
+        url = url.get("content")
+        assert url is not None, "cannot find url"
+        return url.strip()
+    def title(self, soup: BeautifulSoup) -> str:
+        title = soup.find("h1")
+        assert title is not None, "cannot find title"
+        title = title.getText().strip()
+        assert len(title) > 0, "cannot find title"
+        return title
+    def date(self, soup: BeautifulSoup) -> str:
+        date = soup.find("time", {"class": "article__time"})
+        assert date is not None, "cannot find date"
+        date = date.get("datetime")
+        assert date is not None, "cannot find date"
+        return datetime.strptime(date, "%Y-%m-%d").strftime(DATE_FORMAT)
+    def text(self, soup: BeautifulSoup) -> str:
+        article = soup.find("div", {"class": "article__body"})
+        assert article is not None, "cannot find article"
+        self.remove_tags(article)
+        ret =  article.getText().strip()
+        assert len(ret) > 0, "cannot find article content"
+        return ret
+
 PARSER_MAP = {
-    "hrt": HrtParser(),
-    "direktno": DirektnoParser(),
-    "vecernji": VecernjiParser(),
+    #"hrt": HrtParser(),
+    #"direktno": DirektnoParser(),
+    #"vecernji": VecernjiParser(),
     "novilist": NoviListParser(),
+    "24sata": Sata24Parser(),
 }
 
 @dataclass
@@ -192,13 +227,17 @@ def load_json(path: Path) -> Tuple[Dict[str, str], BeautifulSoup]:
 def process(file: File) -> None:
     try:
         data, html = load_json(file.src_path)
-        data["url"] = file.parser.url(html)
-        data["title"] = file.parser.title(html)
-        data["text"] = file.parser.text(html)
-        data["publish_date"] = file.parser.date(html)
 
+        data["url"] = file.parser.url(html)
+        if data["url"] is None:
+            return
+
+        data["publish_date"] = file.parser.date(html)
         if not (START_DATE <= datetime.strptime(data["publish_date"], DATE_FORMAT) <= END_DATE):
             return
+
+        data["title"] = file.parser.title(html)
+        data["text"] = file.parser.text(html)
 
         save_path = file.dst_path
         for part in data["publish_date"].split("/"): save_path = save_path / part
@@ -207,7 +246,7 @@ def process(file: File) -> None:
         with open(save_path, "w") as f:
             json.dump(data, f)
     except Exception as e:
-        print(f"{file=} -> {e}")
+        print(f"{file.src_path=} -> {e}")
 
 
 if __name__ == "__main__":
