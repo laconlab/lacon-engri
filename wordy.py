@@ -26,7 +26,7 @@ def is_email(word: str) -> bool:
         return RE_EMAIL.match(word, timeout=1) is not None
     except Exception:
         return False
-TRANSLATE = str.maketrans('', '', ''',.?;:'"!()+=/»''')
+TRANSLATE = str.maketrans('', '', ''',.?;:'"!()+=/»’“''')
 VALID_CHARS = set('''qwertyuiopasdfghjklzxcvbnmčćđšž,.?;:'"!()-+=/''')
 
 

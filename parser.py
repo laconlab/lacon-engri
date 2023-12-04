@@ -181,12 +181,38 @@ class Sata24Parser(Parser):
         assert len(ret) > 0, "cannot find article content"
         return ret
 
+class DnevnoParser(Parser):
+    REMOVE_TAGS = ["div", "img", "a", "h1", "style", "time", "script", "blockquote",
+                   "ins", "h3", "article", "video", "em", "iframe", "img"]
+    def remove_tags(self, html: BeautifulSoup) -> None:
+        for tag in self.REMOVE_TAGS:
+            for it in html.find_all(tag): it.extract()
+    def url(self, soup: BeautifulSoup) -> Optional[str]:
+        ret = soup.find("meta", {"property": "og:url"})
+        assert ret is not None, "cannot find url"
+        ret = ret.get("content")
+        assert ret is not None, "cannot find url"
+        return ret.strip()
+    def title(self, soup: BeautifulSoup) -> str:
+        title = soup.find("h1")
+        return "" if title is None else title.getText().strip()
+    def text(self, soup: BeautifulSoup) -> str:
+        text = soup.find("div", {"id": "content"})
+        assert text is not None, "text not found"
+        self.remove_tags(text)
+        return text.getText().strip()
+    def date(self, soup: BeautifulSoup) -> str:
+        date = soup.find("time", {"class": "date"})
+        assert date is not None, "cannot find date"
+        return datetime.strptime(date.get("datetime"), "%Y-%m-%d").strftime(DATE_FORMAT)
+
 PARSER_MAP = {
     #"hrt": HrtParser(),
     #"direktno": DirektnoParser(),
     #"vecernji": VecernjiParser(),
-    "novilist": NoviListParser(),
-    "24sata": Sata24Parser(),
+    #"novilist": NoviListParser(),
+    #"24sata": Sata24Parser(),
+    "dnevno": DnevnoParser(),
 }
 
 @dataclass
@@ -197,7 +223,7 @@ class File:
 
 
 def get_files(src: Path, dst: Path) -> Tuple[Generator[File, File, None], int]:
-    file_count = sum(len(os.listdir(src / f)) for f in os.listdir(src) if (src / f).is_dir())
+    file_count = sum(len(os.listdir(src / f)) for f in os.listdir(src) if (src / f).is_dir() and f in PARSER_MAP)
     def gen():
         for folder in os.listdir(src):
             print(folder)
