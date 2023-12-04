@@ -206,13 +206,42 @@ class DnevnoParser(Parser):
         assert date is not None, "cannot find date"
         return datetime.strptime(date.get("datetime"), "%Y-%m-%d").strftime(DATE_FORMAT)
 
+class SlobodnaParser(Parser):
+    REMOVE_TAGS = ["a", "figure", "div", "script", "blockquote", "em", "style", "video", "img", "iframe"]
+    DATE_MAP = {"siječnja": 1, "veljače": 2, "ožujka": 3, "travnja": 4, "svibnja": 5, "lipnja": 6,
+                "srpnja": 7, "kolovoza": 8, "rujna": 9, "listopada": 10, "studenog": 11, "prosinca": 12}
+    def remove_tags(self, html: BeautifulSoup) -> None:
+        for tag in self.REMOVE_TAGS:
+            for it in html.find_all(tag): it.extract()
+    def url(self, soup: BeautifulSoup) -> Optional[str]:
+        ret = soup.find("meta", {"property": "og:url"})
+        assert ret is not None, "cannot find url"
+        ret = ret.get("content")
+        assert ret is not None, "cannot find url"
+        return ret.strip()
+    def title(self, soup: BeautifulSoup) -> str:
+        title = soup.find("h1")
+        return "" if title is None else title.getText().strip()
+    def text(self, soup: BeautifulSoup) -> str:
+        text = soup.find("div", {"class": "itemFullText"})
+        assert text is not None, "text not found"
+        self.remove_tags(text)
+        return text.getText().strip()
+    def date(self, soup: BeautifulSoup) -> str:
+        date = soup.find("div", {"class": "item__dates"})
+        assert date is not None, "cannot find date"
+        date = date.getText().split("-")[0].strip()
+        day, month, year = date.replace(".", "").split(" ")
+        return f"{year}/{self.DATE_MAP[month]}/{day}"
+
 PARSER_MAP = {
     #"hrt": HrtParser(),
     #"direktno": DirektnoParser(),
     #"vecernji": VecernjiParser(),
     #"novilist": NoviListParser(),
     #"24sata": Sata24Parser(),
-    "dnevno": DnevnoParser(),
+    #"dnevno": DnevnoParser(),
+    "slobodnadalmacija": SlobodnaParser(),
 }
 
 @dataclass
