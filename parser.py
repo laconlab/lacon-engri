@@ -41,9 +41,8 @@ class HrtParser(Parser):
         assert ret is not None, "cannot find url"
         return ret.strip()
     def title(self, soup: BeautifulSoup) -> str:
-        titles = soup.find_all("h1")
-        assert len(titles) > 0, "unexpected number of titles found"
-        return titles[0].getText()
+        title = soup.find("h1")
+        return "" if title is None else title.getText().strip()
     def date(self, soup: BeautifulSoup) -> str:
         dates = [self.date_re.match(p.get_text()) for p in soup.find_all("p")]
         dates = [date for date in dates if date is not None]
@@ -69,9 +68,8 @@ class DirektnoParser(Parser):
         assert url is not None, "cannot find url"
         return url.strip()
     def title(self, soup: BeautifulSoup) -> str:
-        titles = soup.find_all("h1")
-        assert len(titles) >= 1, f"unexpected number of titles found {titles}"
-        return titles[0].getText().strip()
+        title = soup.find("h1")
+        return "" if title is None else title.getText().strip()
     def date(self, soup: BeautifulSoup) -> str:
         dates = [s.get("content") for s in soup.find_all("meta", {"property": "article:published_time"})]
         dates = [date for date in dates if date is not None]
@@ -103,8 +101,7 @@ class VecernjiParser(Parser):
         return url.strip()
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1")
-        assert title is not None, "title not found"
-        return title.getText()
+        return "" if title is None else title.getText().strip()
     def date(self, soup: BeautifulSoup) -> str:
         dates = [m for m in soup.find_all("meta") if m.get("itemprop", "") == "datePublished"]
         assert len(dates) == 1, f'unexpedted numbed of dates {len(dates)}'
@@ -137,9 +134,8 @@ class NoviListParser(Parser):
         if url == """https://www.novilist.hr/novosti/""": return None
         return url
     def title(self, soup: BeautifulSoup) -> str:
-        titles = soup.find_all("h1", {"class": "article-title"})
-        assert len(titles) >= 1, f"unexpected number of titles found {titles}"
-        return titles[0].getText().strip()
+        title = soup.find("h1", {"class": "article-title"})
+        return "" if title is None else title.getText().strip()
     def date(self, soup: BeautifulSoup) -> str:
         dates = soup.find_all("meta", {"property": "article:published_time"})
         assert len(dates) == 1, f'unexpedted numbed of dates {len(dates)}'
@@ -170,10 +166,7 @@ class Sata24Parser(Parser):
         return url.strip()
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1")
-        assert title is not None, "cannot find title"
-        title = title.getText().strip()
-        assert len(title) > 0, "cannot find title"
-        return title
+        return "" if title is None else title.getText().strip()
     def date(self, soup: BeautifulSoup) -> str:
         date = soup.find("time", {"class": "article__time"})
         assert date is not None, "cannot find date"
@@ -228,16 +221,18 @@ def process(file: File) -> None:
     try:
         data, html = load_json(file.src_path)
 
-        data["url"] = file.parser.url(html)
-        if data["url"] is None:
+        url = file.parser.url(html)
+        if url is None:
             return
-
+        data["url"] = url
         data["publish_date"] = file.parser.date(html)
         if not (START_DATE <= datetime.strptime(data["publish_date"], DATE_FORMAT) <= END_DATE):
             return
 
-        data["title"] = file.parser.title(html)
-        data["text"] = file.parser.text(html)
+        title = file.parser.title(html)
+        text = "\n".join([title, file.parser.text(html)]).strip()
+        assert len(text) > 0, "text too short"
+        data["text"] = text
 
         save_path = file.dst_path
         for part in data["publish_date"].split("/"): save_path = save_path / part
