@@ -19,6 +19,8 @@ from bs4 import BeautifulSoup
 DATE_FORMAT = "%Y/%m/%d"
 START_DATE = datetime(2020, 1, 1)
 END_DATE = datetime(2024, 1, 1)
+DATE_MAP = {"siječnja": 1, "veljače": 2, "ožujka": 3, "travnja": 4, "svibnja": 5, "lipnja": 6,
+            "srpnja": 7, "kolovoza": 8, "rujna": 9, "listopada": 10, "studenog": 11, "studenoga": 11, "prosinca": 12}
 
 class Parser(ABC):
     def url(self, _: BeautifulSoup) -> Optional[str]:
@@ -208,8 +210,6 @@ class DnevnoParser(Parser):
 
 class SlobodnaParser(Parser):
     REMOVE_TAGS = ["a", "figure", "div", "script", "blockquote", "em", "style", "video", "img", "iframe"]
-    DATE_MAP = {"siječnja": 1, "veljače": 2, "ožujka": 3, "travnja": 4, "svibnja": 5, "lipnja": 6,
-                "srpnja": 7, "kolovoza": 8, "rujna": 9, "listopada": 10, "studenog": 11, "prosinca": 12}
     def remove_tags(self, html: BeautifulSoup) -> None:
         for tag in self.REMOVE_TAGS:
             for it in html.find_all(tag): it.extract()
@@ -232,7 +232,32 @@ class SlobodnaParser(Parser):
         assert date is not None, "cannot find date"
         date = date.getText().split("-")[0].strip()
         day, month, year = date.replace(".", "").split(" ")
-        return f"{year}/{self.DATE_MAP[month]}/{day}"
+        return f"{year}/{DATE_MAP[month]}/{day}"
+
+class IndexhrParser(Parser):
+    REMOVE_TAGS = ["script", "span", "img", "a", "i", "blockquote", "iframe", "em", "style", "video", "font"]
+    def remove_tags(self, html: BeautifulSoup) -> None:
+        for tag in self.REMOVE_TAGS:
+            for it in html.find_all(tag): it.extract()
+    def url(self, soup: BeautifulSoup) -> Optional[str]:
+        ret = soup.find("link", {"rel": "og:url"})
+        assert ret is not None, "cannot find url"
+        ret = ret.get("href")
+        assert ret is not None, "cannot find url"
+        return ret.strip()
+    def title(self, soup: BeautifulSoup) -> str:
+        return soup.find("h1", {"class": "title"}).getText().strip()
+    def text(self, soup: BeautifulSoup) -> str:
+        text = soup.find("div", {"class": "content-holder"})
+        assert text is not None, "text not found"
+        self.remove_tags(text)
+        return text.getText().strip()
+    def date(self, soup: BeautifulSoup) -> str:
+        date = soup.find("div", {"class": "article-info"}).getText().strip()
+        dates = re.findall(r"\d+\.\s.*\s\d+.", date)
+        assert len(dates) >= 1, "date not found"
+        day, month, year = dates[0].replace(".", "").split(" ")
+        return f"{year}/{DATE_MAP[month]}/{day}"
 
 PARSER_MAP = {
     #"hrt": HrtParser(),
@@ -241,7 +266,8 @@ PARSER_MAP = {
     #"novilist": NoviListParser(),
     #"24sata": Sata24Parser(),
     #"dnevno": DnevnoParser(),
-    "slobodnadalmacija": SlobodnaParser(),
+    #"slobodnadalmacija": SlobodnaParser(),
+    "indexhr": IndexhrParser(),
 }
 
 @dataclass
