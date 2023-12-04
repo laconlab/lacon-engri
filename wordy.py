@@ -82,6 +82,6 @@ if __name__ == "__main__":
     with mp.Pool(mp.cpu_count()) as p:
         for ws in tqdm(p.imap(process, files), total=len(files)):
             words.update(ws)
-    with open("words.json", "w", encoding='utf8') as f:
+    with open("words.json", "w", encoding="utf8") as f:
         json.dump(words, f, ensure_ascii=False)
 
