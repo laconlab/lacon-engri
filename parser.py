@@ -238,8 +238,9 @@ def process(file: File) -> None:
         for part in data["publish_date"].split("/"): save_path = save_path / part
         save_path = save_path / f"{hashlib.sha1(data['url'].encode()).hexdigest()}.json"
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        with open(save_path, "w") as f:
-            json.dump(data, f)
+
+        with open(save_path, "w", encoding="utf8") as f:
+            json.dump(data, f, ensure_ascii=False)
     except Exception as e:
         print(f"{file.src_path=} -> {e}")
 
