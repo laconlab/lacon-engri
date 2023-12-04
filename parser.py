@@ -121,10 +121,44 @@ class VecernjiParser(Parser):
         assert len(ret) > 10, "text too short"
         return ret
 
+class NoviListParser(Parser):
+    REMOVE_TAGS = ["blockquote", "script", "iframe", "span",
+                    "a", "em", "style", "figure", "g", "img",
+                    "path", "sup", "svg", "time", "strong", "video", "font", "div"]
+    def remove_tags(self, html: BeautifulSoup) -> None:
+        for tag in self.REMOVE_TAGS:
+            for it in html.find_all(tag): it.extract()
+    def url(self, soup: BeautifulSoup) -> str:
+        url = soup.find("meta", {"property": "og:url"})
+        assert url is not None, "cannot find url"
+        url = url.get("content")
+        assert url is not None, "cannot find url"
+        return url.strip()
+    def title(self, soup: BeautifulSoup) -> str:
+        titles = soup.find_all("h1", {"class": "article-title"})
+        assert len(titles) >= 1, f"unexpected number of titles found {titles}"
+        return titles[0].getText().strip()
+    def date(self, soup: BeautifulSoup) -> str:
+        dates = soup.find_all("meta", {"property": "article:published_time"})
+        assert len(dates) == 1, f'unexpedted numbed of dates {len(dates)}'
+        date = dates[0].get("content").strip()
+        return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S%z").strftime(DATE_FORMAT)
+    def text(self, soup: BeautifulSoup) -> str:
+        intro = soup.find("p", {"class": "intro-text"})
+        intro = "" if intro is None else intro.get_text().strip()
+        article = soup.find("div", {"class": "user-content"})
+        assert article is not None and len(article) > 0, "cannot find article"
+        self.remove_tags(article)
+        text = article.get_text().strip()
+        text = "\n".join((intro, text)).strip()
+        assert len(text) > 0, "text content not found"
+        return text
+
 PARSER_MAP = {
     "hrt": HrtParser(),
     "direktno": DirektnoParser(),
     "vecernji": VecernjiParser(),
+    "novilist": NoviListParser(),
 }
 
 @dataclass
