@@ -19,8 +19,10 @@ from bs4 import BeautifulSoup
 DATE_FORMAT = "%Y/%m/%d"
 START_DATE = datetime(2020, 1, 1)
 END_DATE = datetime(2024, 1, 1)
-DATE_MAP = {"siječnja": 1, "veljače": 2, "ožujka": 3, "travnja": 4, "svibnja": 5, "lipnja": 6,
-            "srpnja": 7, "kolovoza": 8, "rujna": 9, "listopada": 10, "studenog": 11, "studenoga": 11, "prosinca": 12}
+DATE_MAP = {"siječnja": 1, "siječanj": 1, "veljače": 2, "veljača": 2, "ožujka": 3, "ožujak": 3, "travnja": 4, "travanj": 4,
+            "svibnja": 5, "svibanj": 5, "lipnja": 6, "lipanj": 6, "srpnja": 7, "srpanj": 7, "kolovoza": 8, "kolovoz": 8,
+            "rujna": 9, "rujan": 9, "listopada": 10, "listopad": 10, "studenog": 11, "studeni": 11, "studenoga": 11,
+            "prosinca": 12, "prosinac": 12}
 
 class Parser(ABC):
     def url(self, _: BeautifulSoup) -> Optional[str]:
@@ -259,6 +261,62 @@ class IndexhrParser(Parser):
         day, month, year = dates[0].replace(".", "").split(" ")
         return f"{year}/{DATE_MAP[month]}/{day}"
 
+class JutarnjiParser(Parser):
+    REMOVE_TAGS = ["a", "blockquote", "script", "iframe", "em", "style", "video", "img"]
+    DATE_RE = re.compile(r"\d+\.\s.*\s\d+\.")
+    def remove_tags(self, html: BeautifulSoup) -> None:
+        for tag in self.REMOVE_TAGS:
+            for it in html.find_all(tag): it.extract()
+    def url(self, soup: BeautifulSoup) -> Optional[str]:
+        ret = soup.find("meta", {"property": "og:url"})
+        assert ret is not None, "cannot find url"
+        ret = ret.get("content")
+        assert ret is not None, "cannot find url"
+        return ret.strip()
+    def title(self, soup: BeautifulSoup) -> str:
+        title = soup.find("h1", {"class": "item__title"})
+        return "" if title is None else title.getText().strip()
+    def text(self, soup: BeautifulSoup) -> str:
+        text = soup.find("div", {"class": "itemFullText"})
+        assert text is not None, "cannot find text"
+        self.remove_tags(text)
+        ps = text.find_all("p")
+        assert len(ps) > 0, "cannot find paragraphs"
+        return "\n".join([p.getText().strip() for p in ps])
+    def date(self, soup: BeautifulSoup) -> str:
+        date = soup.find("span", {"class": "item__author__date"})
+        assert date is not None, "cannot find date"
+        date =date.getText().strip()
+        dates = self.DATE_RE.findall(date)
+        assert len(dates) == 1, f"unexpected number of dates {dates}"
+        day, month, year = dates[0].replace(".", "").split(" ")
+        return f"{year}/{DATE_MAP[month]}/{day}"
+
+class TelegramParser(Parser):
+    REMOVE_TAGS = ["a", "span", "blockquote", "script", "iframe", "em", "style", "video", "img"]
+    DATE_RE = re.compile(r"\d+\.\s.*\s\d+\.")
+    def remove_tags(self, html: BeautifulSoup) -> None:
+        for tag in self.REMOVE_TAGS:
+            for it in html.find_all(tag): it.extract()
+    def url(self, soup: BeautifulSoup) -> Optional[str]:
+        ret = soup.find("meta", {"property": "og:url"})
+        assert ret is not None, "cannot find url"
+        ret = ret.get("content")
+        assert ret is not None, "cannot find url"
+        return ret.strip()
+    def title(self, soup: BeautifulSoup) -> str:
+        title = soup.find("h1")
+        return "" if title is None else title.getText().strip()
+    def text(self, soup: BeautifulSoup) -> str:
+        text = soup.find("div", {"id": "article-content"})
+        assert text is not None, "cannot find text"
+        self.remove_tags(text)
+        return text.getText().strip()
+    def date(self, soup: BeautifulSoup) -> str:
+        date = soup.find("span", {"class": "meta-date"})
+        assert date is not None, "cannot find date"
+        return datetime.strptime(date.getText().strip(), "%d. %m. %Y.").strftime(DATE_FORMAT)
+
 PARSER_MAP = {
     #"hrt": HrtParser(),
     #"direktno": DirektnoParser(),
@@ -267,7 +325,9 @@ PARSER_MAP = {
     #"24sata": Sata24Parser(),
     #"dnevno": DnevnoParser(),
     #"slobodnadalmacija": SlobodnaParser(),
-    "indexhr": IndexhrParser(),
+    #"indexhr": IndexhrParser(),
+    #"jutarnji": JutarnjiParser(),
+    "telegram": TelegramParser(),
 }
 
 @dataclass
