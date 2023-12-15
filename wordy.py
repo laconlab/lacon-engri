@@ -37,13 +37,8 @@ def process(file_path: str):
     with open(file_path, "r") as f:
         data = json.load(f)
 
-    ret = text_to_words(data["text"])
-    ret.update(text_to_words(data["title"]))
-    return ret
-
-def text_to_words(text: str):
     # split to sentences
-    sentences = sent_tokenize(text)
+    sentences = sent_tokenize(data["text"])
 
     # split by space
     words = (w for s in sentences for w in s.split(" "))
