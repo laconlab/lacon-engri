@@ -1,16 +1,10 @@
 #!./venv/bin/python
-import multiprocessing as mp
-import sys
-import os
-import gzip
-import json
-import hashlib
-import re
+import multiprocessing as mp, sys, os, gzip, json, hashlib, re, asyncio
 
 from datetime import datetime
 from abc import ABC
 from pathlib import Path
-from typing import Generator, Tuple, Dict, Optional
+from typing import Generator, Tuple, Dict, Optional, List
 from dataclasses import dataclass
 
 from tqdm import tqdm
@@ -318,15 +312,15 @@ class TelegramParser(Parser):
         return datetime.strptime(date.getText().strip(), "%d. %m. %Y.").strftime(DATE_FORMAT)
 
 PARSER_MAP = {
-    #"hrt": HrtParser(),
-    #"direktno": DirektnoParser(),
-    #"vecernji": VecernjiParser(),
-    #"novilist": NoviListParser(),
-    #"24sata": Sata24Parser(),
-    #"dnevno": DnevnoParser(),
-    #"slobodnadalmacija": SlobodnaParser(),
-    #"indexhr": IndexhrParser(),
-    #"jutarnji": JutarnjiParser(),
+    "hrt": HrtParser(),
+    "direktno": DirektnoParser(),
+    "vecernji": VecernjiParser(),
+    "novilist": NoviListParser(),
+    "24sata": Sata24Parser(),
+    "dnevno": DnevnoParser(),
+    "slobodnadalmacija": SlobodnaParser(),
+    "indexhr": IndexhrParser(),
+    "jutarnji": JutarnjiParser(),
     "telegram": TelegramParser(),
 }
 
@@ -337,18 +331,17 @@ class File:
     parser: Parser
 
 
-def get_files(src: Path, dst: Path) -> Tuple[Generator[File, File, None], int]:
-    file_count = sum(len(os.listdir(src / f)) for f in os.listdir(src) if (src / f).is_dir() and f in PARSER_MAP)
-    def gen():
-        for folder in os.listdir(src):
-            print(folder)
-            if folder not in PARSER_MAP: continue
-            if not (src / folder).is_dir(): continue
-            for file in os.listdir(src / folder):
-                if not file.endswith(".gz"): continue
-                yield File(src / folder / file, dst / folder, PARSER_MAP[folder])
-    return gen(), file_count
+def get_files(src: Path, dst: Path) -> Generator[File, File, None]:
+    for folder in os.listdir(src):
+        if folder not in PARSER_MAP: continue
+        if not (src / folder).is_dir(): continue
+        print(folder)
+        for file in os.listdir(src / folder):
+            if not file.endswith(".gz"): continue
+            yield File(src / folder / file, dst / folder, PARSER_MAP[folder])
 
+def to_batches(batch_size: int, gen: Generator[File, File, None]) -> Generator[List[File], List[File], None]:
+    while gen: yield [f for _, f in zip(range(batch_size), gen)]
 
 def load_json(path: Path) -> Tuple[Dict[str, str], BeautifulSoup]:
     with gzip.open(path, "rt", encoding="UTF-8") as f:
@@ -358,7 +351,7 @@ def load_json(path: Path) -> Tuple[Dict[str, str], BeautifulSoup]:
     return data, html
 
 
-def process(file: File) -> None:
+async def process(file: File) -> None:
     try:
         data, html = load_json(file.src_path)
 
@@ -385,10 +378,19 @@ def process(file: File) -> None:
     except Exception as e:
         print(f"{file.src_path=} -> {e}")
 
+def process_batch(batch: List[File]):
+    async def inner():
+        await asyncio.gather(*(process(f) for f in batch))
+    asyncio.run(inner())
+    return len(batch)
 
 if __name__ == "__main__":
     _, src_root, dst_root = sys.argv
-    files, file_count = get_files(Path(src_root), Path(dst_root))
-    with mp.Pool(mp.cpu_count() * 2) as p:
-        for _ in tqdm(p.imap(process, files), total=file_count):
-            pass
+    files = get_files(Path(src_root), Path(dst_root))
+    batched_files = to_batches(32, files)
+
+    progress_bar = tqdm(desc="Processing", unit="item")
+    with mp.Pool(mp.cpu_count()) as p:
+        for count in p.imap(process_batch, batched_files):
+            progress_bar.update(count)
+    progress_bar.close()
