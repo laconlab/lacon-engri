@@ -339,9 +339,16 @@ def get_files(src: Path, dst: Path) -> Generator[File, File, None]:
         for file in os.listdir(src / folder):
             if not file.endswith(".gz"): continue
             yield File(src / folder / file, dst / folder, PARSER_MAP[folder])
+        break
 
 def to_batches(batch_size: int, gen: Generator[File, File, None]) -> Generator[List[File], List[File], None]:
-    while gen: yield [f for _, f in zip(range(batch_size), gen)]
+    ret = []
+    for item in gen: 
+        ret.append(item)
+        if len(ret) == batch_size:
+            yield ret
+            ret = []
+    yield ret
 
 def load_json(path: Path) -> Tuple[Dict[str, str], BeautifulSoup]:
     with gzip.open(path, "rt", encoding="UTF-8") as f:
