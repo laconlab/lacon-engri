@@ -1,18 +1,15 @@
 #!./venv/bin/python
-import multiprocessing as mp
-import sys
-import os
-import json
+import multiprocessing as mp, sys, os, csv, json
 
-from typing import List
+from typing import Generator
 from collections import Counter
 
+import regex
 import nltk
 nltk.download('punkt')
 
 from tqdm import tqdm
 from nltk.tokenize import sent_tokenize
-import regex
 
 RE_URL = regex.compile(r"^(?:http(s)?:\/\/)?[\w.-]+(?:\.[\w\.-]+)+[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=.]+$", regex.IGNORECASE)
 def is_url(word: str) -> bool:
@@ -30,8 +27,8 @@ TRANSLATE = str.maketrans('', '', ''',.?;:'"!()+=/»’“''')
 VALID_CHARS = set('''qwertyuiopasdfghjklzxcvbnmčćđšž,.?;:'"!()-+=/''')
 
 
-def get_files(src: str) -> List[str]:
-    return [os.path.join(root, file) for root, _, files in os.walk(src) for file in files]
+def get_files(src: str) -> Generator[str, None, None]:
+    return (os.path.join(root, file) for root, _, files in os.walk(src) for file in files)
 
 def process(file_path: str):
     with open(file_path, "r") as f:
@@ -71,12 +68,19 @@ def process(file_path: str):
 
 
 if __name__ == "__main__":
-    _, src_root = sys.argv
+    _, src_root, dest_path = sys.argv
+    print(f"processing from {src_root}")
     files = get_files(src_root)
+
+    print("start processing")
     words = Counter()
     with mp.Pool(mp.cpu_count()) as p:
-        for ws in tqdm(p.imap(process, files), total=len(files)):
+        for ws in tqdm(p.imap(process, files)):
             words.update(ws)
-    with open("words.json", "w", encoding="utf8") as f:
-        json.dump(words, f, ensure_ascii=False)
+
+    print(f"writing csv file into {dest_path} with {len(words)} rows")
+    with open(f"{dest_path}/words.csv", "w", encoding="utf8") as f:
+        writer = csv.writer(f, delimiter=",")
+        writer.writerow(["word", "frequency"])
+        writer.writerows(words.items())
 
