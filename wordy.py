@@ -79,7 +79,7 @@ if __name__ == "__main__":
             words.update(ws)
 
     print(f"writing csv file into {dest_path} with {len(words)} rows")
-    with open(f"{dest_path}/words.csv", "w", encoding="utf8") as f:
+    with open(f"{dest_path}/word_list.csv", "w", encoding="utf8") as f:
         writer = csv.writer(f, delimiter=",")
         writer.writerow(["word", "frequency"])
         writer.writerows(words.items())

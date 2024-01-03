@@ -40,7 +40,7 @@ class HrtParser(Parser):
         return ret.strip()
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1")
-        return "" if title is None else title.getText().strip()
+        return "" if title is None else title.getText("\n").strip()
     def date(self, soup: BeautifulSoup) -> str:
         dates = [self.date_re.match(p.get_text()) for p in soup.find_all("p")]
         dates = [date for date in dates if date is not None]
@@ -67,7 +67,7 @@ class DirektnoParser(Parser):
         return url.strip()
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1")
-        return "" if title is None else title.getText().strip()
+        return "" if title is None else title.getText("\n").strip()
     def date(self, soup: BeautifulSoup) -> str:
         dates = [s.get("content") for s in soup.find_all("meta", {"property": "article:published_time"})]
         dates = [date for date in dates if date is not None]
@@ -80,7 +80,7 @@ class DirektnoParser(Parser):
         self.remove_tags(main)
         content = main.find_all("p", attrs=lambda x: not x)
         assert len(content) > 0, "no text found"
-        return "\n".join([c.getText().strip() for c in content])
+        return "\n".join([c.getText("\n").strip() for c in content])
 
 class VecernjiParser(Parser):
     def __init__(self):
@@ -99,7 +99,7 @@ class VecernjiParser(Parser):
         return url.strip()
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1")
-        return "" if title is None else title.getText().strip()
+        return "" if title is None else title.getText("\n").strip()
     def date(self, soup: BeautifulSoup) -> str:
         dates = [m for m in soup.find_all("meta") if m.get("itemprop", "") == "datePublished"]
         assert len(dates) == 1, f'unexpedted numbed of dates {len(dates)}'
@@ -133,7 +133,7 @@ class NoviListParser(Parser):
         return url
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1", {"class": "article-title"})
-        return "" if title is None else title.getText().strip()
+        return "" if title is None else title.getText("\n").strip()
     def date(self, soup: BeautifulSoup) -> str:
         dates = soup.find_all("meta", {"property": "article:published_time"})
         assert len(dates) == 1, f'unexpedted numbed of dates {len(dates)}'
@@ -164,7 +164,7 @@ class Sata24Parser(Parser):
         return url.strip()
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1")
-        return "" if title is None else title.getText().strip()
+        return "" if title is None else title.getText("\n").strip()
     def date(self, soup: BeautifulSoup) -> str:
         date = soup.find("time", {"class": "article__time"})
         assert date is not None, "cannot find date"
@@ -175,7 +175,7 @@ class Sata24Parser(Parser):
         article = soup.find("div", {"class": "article__body"})
         assert article is not None, "cannot find article"
         self.remove_tags(article)
-        ret =  article.getText().strip()
+        ret =  article.getText("\n").strip()
         assert len(ret) > 0, "cannot find article content"
         return ret
 
@@ -193,12 +193,12 @@ class DnevnoParser(Parser):
         return ret.strip()
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1")
-        return "" if title is None else title.getText().strip()
+        return "" if title is None else title.getText("\n").strip()
     def text(self, soup: BeautifulSoup) -> str:
         text = soup.find("div", {"id": "content"})
         assert text is not None, "text not found"
         self.remove_tags(text)
-        return text.getText().strip()
+        return text.getText("\n").strip()
     def date(self, soup: BeautifulSoup) -> str:
         date = soup.find("time", {"class": "date"})
         assert date is not None, "cannot find date"
@@ -217,16 +217,16 @@ class SlobodnaParser(Parser):
         return ret.strip()
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1")
-        return "" if title is None else title.getText().strip()
+        return "" if title is None else title.getText("\n").strip()
     def text(self, soup: BeautifulSoup) -> str:
         text = soup.find("div", {"class": "itemFullText"})
         assert text is not None, "text not found"
         self.remove_tags(text)
-        return text.getText().strip()
+        return text.getText("\n").strip()
     def date(self, soup: BeautifulSoup) -> str:
         date = soup.find("div", {"class": "item__dates"})
         assert date is not None, "cannot find date"
-        date = date.getText().split("-")[0].strip()
+        date = date.getText("\n").split("-")[0].strip()
         day, month, year = date.replace(".", "").split(" ")
         return f"{year}/{DATE_MAP[month]}/{day}"
 
@@ -242,14 +242,14 @@ class IndexhrParser(Parser):
         assert ret is not None, "cannot find url"
         return ret.strip()
     def title(self, soup: BeautifulSoup) -> str:
-        return soup.find("h1", {"class": "title"}).getText().strip()
+        return soup.find("h1", {"class": "title"}).getText("\n").strip()
     def text(self, soup: BeautifulSoup) -> str:
         text = soup.find("div", {"class": "content-holder"})
         assert text is not None, "text not found"
         self.remove_tags(text)
-        return text.getText().strip()
+        return text.getText("\n").strip()
     def date(self, soup: BeautifulSoup) -> str:
-        date = soup.find("div", {"class": "article-info"}).getText().strip()
+        date = soup.find("div", {"class": "article-info"}).getText("\n").strip()
         dates = re.findall(r"\d+\.\s.*\s\d+.", date)
         assert len(dates) >= 1, "date not found"
         day, month, year = dates[0].replace(".", "").split(" ")
@@ -269,18 +269,18 @@ class JutarnjiParser(Parser):
         return ret.strip()
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1", {"class": "item__title"})
-        return "" if title is None else title.getText().strip()
+        return "" if title is None else title.getText("\n").strip()
     def text(self, soup: BeautifulSoup) -> str:
         text = soup.find("div", {"class": "itemFullText"})
         assert text is not None, "cannot find text"
         self.remove_tags(text)
         ps = text.find_all("p")
         assert len(ps) > 0, "cannot find paragraphs"
-        return "\n".join([p.getText().strip() for p in ps])
+        return "\n".join([p.getText("\n").strip() for p in ps])
     def date(self, soup: BeautifulSoup) -> str:
         date = soup.find("span", {"class": "item__author__date"})
         assert date is not None, "cannot find date"
-        date =date.getText().strip()
+        date =date.getText("\n").strip()
         dates = self.DATE_RE.findall(date)
         assert len(dates) == 1, f"unexpected number of dates {dates}"
         day, month, year = dates[0].replace(".", "").split(" ")
@@ -300,16 +300,16 @@ class TelegramParser(Parser):
         return ret.strip()
     def title(self, soup: BeautifulSoup) -> str:
         title = soup.find("h1")
-        return "" if title is None else title.getText().strip()
+        return "" if title is None else title.getText("\n").strip()
     def text(self, soup: BeautifulSoup) -> str:
         text = soup.find("div", {"id": "article-content"})
         assert text is not None, "cannot find text"
         self.remove_tags(text)
-        return text.getText().strip()
+        return text.getText("\n").strip()
     def date(self, soup: BeautifulSoup) -> str:
         date = soup.find("span", {"class": "meta-date"})
         assert date is not None, "cannot find date"
-        return datetime.strptime(date.getText().strip(), "%d. %m. %Y.").strftime(DATE_FORMAT)
+        return datetime.strptime(date.getText("\n").strip(), "%d. %m. %Y.").strftime(DATE_FORMAT)
 
 PARSER_MAP = {
     "hrt": HrtParser(),
@@ -339,7 +339,6 @@ def get_files(src: Path, dst: Path) -> Generator[File, File, None]:
         for file in os.listdir(src / folder):
             if not file.endswith(".gz"): continue
             yield File(src / folder / file, dst / folder, PARSER_MAP[folder])
-        break
 
 def to_batches(batch_size: int, gen: Generator[File, File, None]) -> Generator[List[File], List[File], None]:
     ret = []
@@ -367,7 +366,7 @@ async def process(file: File) -> None:
             return
         data["url"] = url
         data["publish_date"] = file.parser.date(html)
-        if not (START_DATE <= datetime.strptime(data["publish_date"], DATE_FORMAT) <= END_DATE):
+        if not (START_DATE <= datetime.strptime(data["publish_date"], DATE_FORMAT) < END_DATE):
             return
 
         title = file.parser.title(html)
@@ -394,7 +393,7 @@ def process_batch(batch: List[File]):
 if __name__ == "__main__":
     _, src_root, dst_root = sys.argv
     files = get_files(Path(src_root), Path(dst_root))
-    batched_files = to_batches(32, files)
+    batched_files = to_batches(128, files)
 
     progress_bar = tqdm(desc="Processing", unit="item")
     with mp.Pool(mp.cpu_count()) as p:
