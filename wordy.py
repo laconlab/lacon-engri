@@ -64,6 +64,9 @@ def process(file_path: str):
     # take only if word has valid chars
     words = filter(lambda word: len(set(word) - VALID_CHARS) == 0, words)
 
+    # filter out empty words
+    words = filter(lambda word: word, words)
+
     return Counter(words)
 
 

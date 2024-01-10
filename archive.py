@@ -23,7 +23,7 @@ if __name__ == "__main__":
         path = parsed_src / website
         for year in os.listdir(path):
             print(f"copy {website} {year}")
-            path = path / year
+            path = path / Path(year)
             for path, _, files in os.walk(path):
                 for file in files:
                     src_parse_path = Path(path) / file
