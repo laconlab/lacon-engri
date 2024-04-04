@@ -1,3 +1,4 @@
 venv
 archive
 *.csv
+*.txt.gz
