@@ -2,3 +2,4 @@ venv
 archive
 *.csv
 *.txt.gz
+*.db
